@@ -31,8 +31,18 @@ def save(vault_name: str, env_file: str, passphrase: str) -> None:
 @click.argument("vault_name")
 @click.argument("output_file", type=click.Path())
 @click.option("--passphrase", prompt=True, hide_input=True, help="Encryption passphrase")
-def load(vault_name: str, output_file: str, passphrase: str) -> None:
+@click.option("--overwrite", is_flag=True, default=False,
+              help="Overwrite output file if it already exists")
+def load(vault_name: str, output_file: str, passphrase: str, overwrite: bool) -> None:
     """Decrypt and write a vault to an .env file."""
+    import os
+    if not overwrite and os.path.exists(output_file):
+        click.echo(
+            f"Error: '{output_file}' already exists. Use --overwrite to replace it.",
+            err=True,
+        )
+        raise SystemExit(1)
+
     try:
         env_data = load_vault(vault_name, passphrase)
     except FileNotFoundError:
