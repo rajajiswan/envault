@@ -1,75 +1,82 @@
 """Main CLI entry point for envault."""
 
+from __future__ import annotations
+
 import click
 
-from envault.vault import save_vault, load_vault, list_vaults, _parse_env
+from envault.vault import load_vault, save_vault, list_vaults, _parse_env
 from envault.cli_sync import export_cmd, import_cmd
 from envault.cli_diff import diff_cmd
+from envault.cli_history import history_cmd
+from envault.cli_tags import tags_cmd
+from envault.cli_search import search_cmd
+from envault.cli_audit import audit_cmd
+from envault.cli_rotate import rotate_cmd
+from envault.cli_lock import lock_cmd
+from envault.cli_backup import backup_cmd
+from envault.cli_profile import profile_cmd
 
 
 @click.group()
-@click.version_option()
-def cli() -> None:
-    """envault — securely store and sync .env files."""
+def cli():
+    """envault — secure .env vault manager."""
 
 
-@cli.command("save")
-@click.argument("vault_name")
+@cli.command()
+@click.argument("name")
 @click.argument("env_file", type=click.Path(exists=True))
-@click.option("--passphrase", prompt=True, hide_input=True,
-              confirmation_prompt=True, help="Encryption passphrase")
-def save(vault_name: str, env_file: str, passphrase: str) -> None:
-    """Encrypt and save an .env file into a named vault."""
-    with open(env_file, "r") as fh:
-        env_data = _parse_env(fh.read())
+@click.password_option("--passphrase", prompt="Passphrase")
+def save(name: str, env_file: str, passphrase: str):
+    """Save an .env file into a named vault."""
+    with open(env_file) as fh:
+        raw = fh.read()
+    env = _parse_env(raw)
+    save_vault(name, env, passphrase)
+    click.echo(f"Vault '{name}' saved.")
 
-    save_vault(vault_name, env_data, passphrase)
-    click.echo(f"Vault '{vault_name}' saved successfully.")
 
-
-@cli.command("load")
-@click.argument("vault_name")
-@click.argument("output_file", type=click.Path())
-@click.option("--passphrase", prompt=True, hide_input=True, help="Encryption passphrase")
-@click.option("--overwrite", is_flag=True, default=False,
-              help="Overwrite output file if it already exists")
-def load(vault_name: str, output_file: str, passphrase: str, overwrite: bool) -> None:
-    """Decrypt and write a vault to an .env file."""
-    import os
-    if not overwrite and os.path.exists(output_file):
-        click.echo(
-            f"Error: '{output_file}' already exists. Use --overwrite to replace it.",
-            err=True,
-        )
-        raise SystemExit(1)
+@cli.command()
+@click.argument("name")
+@click.option("--passphrase", prompt="Passphrase", hide_input=True)
+@click.option("--output", "-o", default=None, help="Write to file instead of stdout.")
+def load(name: str, passphrase: str, output: str | None):
+    """Load a vault and print its contents."""
+    from envault.crypto import DecryptionError
 
     try:
-        env_data = load_vault(vault_name, passphrase)
-    except FileNotFoundError:
-        click.echo(f"Error: vault '{vault_name}' not found.", err=True)
-        raise SystemExit(1)
-    except Exception as exc:
-        click.echo(f"Error: {exc}", err=True)
+        env = load_vault(name, passphrase)
+    except DecryptionError:
+        click.echo("Error: wrong passphrase or corrupted vault.", err=True)
         raise SystemExit(1)
 
-    with open(output_file, "w") as fh:
-        for key, value in env_data.items():
-            fh.write(f"{key}={value}\n")
-
-    click.echo(f"Vault '{vault_name}' written to '{output_file}'.")
+    lines = "\n".join(f"{k}={v}" for k, v in env.items())
+    if output:
+        with open(output, "w") as fh:
+            fh.write(lines + "\n")
+        click.echo(f"Written to {output}.")
+    else:
+        click.echo(lines)
 
 
 @cli.command("list")
-def list_cmd() -> None:
+def list_cmd():
     """List all saved vaults."""
     vaults = list_vaults()
     if not vaults:
         click.echo("No vaults found.")
-        return
-    for name in vaults:
-        click.echo(f"  {name}")
+    else:
+        for v in vaults:
+            click.echo(v)
 
 
-cli.add_command(export_cmd, name="export")
-cli.add_command(import_cmd, name="import")
-cli.add_command(diff_cmd, name="diff")
+cli.add_command(export_cmd, "export")
+cli.add_command(import_cmd, "import")
+cli.add_command(diff_cmd, "diff")
+cli.add_command(history_cmd, "history")
+cli.add_command(tags_cmd, "tags")
+cli.add_command(search_cmd, "search")
+cli.add_command(audit_cmd, "audit")
+cli.add_command(rotate_cmd, "rotate")
+cli.add_command(lock_cmd, "lock")
+cli.add_command(backup_cmd, "backup")
+cli.add_command(profile_cmd, "profile")
