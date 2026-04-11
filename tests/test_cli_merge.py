@@ -24,14 +24,19 @@ def _make_vault(name, passphrase, data):
     save_vault(name, passphrase, data)
 
 
+def _invoke_merge(runner, src, dst, src_pass, dst_pass, extra_args=None):
+    """Helper to invoke the merge command with common arguments."""
+    args = ["run", src, dst, "--source-pass", src_pass, "--target-pass", dst_pass]
+    if extra_args:
+        args.extend(extra_args)
+    return runner.invoke(merge_cmd, args)
+
+
 def test_merge_command_success(runner, clean_env):
     _make_vault("src", "sp", {"FOO": "bar"})
     _make_vault("dst", "dp", {})
 
-    result = runner.invoke(
-        merge_cmd,
-        ["run", "src", "dst", "--source-pass", "sp", "--target-pass", "dp"],
-    )
+    result = _invoke_merge(runner, "src", "dst", "sp", "dp")
 
     assert result.exit_code == 0
     assert "Added" in result.output
@@ -42,10 +47,7 @@ def test_merge_command_skip_without_overwrite(runner, clean_env):
     _make_vault("src", "sp", {"KEY": "new"})
     _make_vault("dst", "dp", {"KEY": "old"})
 
-    result = runner.invoke(
-        merge_cmd,
-        ["run", "src", "dst", "--source-pass", "sp", "--target-pass", "dp"],
-    )
+    result = _invoke_merge(runner, "src", "dst", "sp", "dp")
 
     assert result.exit_code == 0
     assert "Skipped" in result.output
@@ -56,10 +58,7 @@ def test_merge_command_overwrite_flag(runner, clean_env):
     _make_vault("src", "sp", {"KEY": "new"})
     _make_vault("dst", "dp", {"KEY": "old"})
 
-    result = runner.invoke(
-        merge_cmd,
-        ["run", "src", "dst", "--source-pass", "sp", "--target-pass", "dp", "--overwrite"],
-    )
+    result = _invoke_merge(runner, "src", "dst", "sp", "dp", ["--overwrite"])
 
     assert result.exit_code == 0
     assert "Overwritten" in result.output
@@ -69,10 +68,7 @@ def test_merge_command_overwrite_flag(runner, clean_env):
 def test_merge_command_unknown_vault(runner, clean_env):
     _make_vault("dst", "dp", {})
 
-    result = runner.invoke(
-        merge_cmd,
-        ["run", "ghost", "dst", "--source-pass", "sp", "--target-pass", "dp"],
-    )
+    result = _invoke_merge(runner, "ghost", "dst", "sp", "dp")
 
     assert result.exit_code != 0
     assert "Error" in result.output
@@ -82,10 +78,7 @@ def test_merge_command_specific_keys(runner, clean_env):
     _make_vault("src", "sp", {"A": "1", "B": "2"})
     _make_vault("dst", "dp", {})
 
-    result = runner.invoke(
-        merge_cmd,
-        ["run", "src", "dst", "--source-pass", "sp", "--target-pass", "dp", "--keys", "A"],
-    )
+    result = _invoke_merge(runner, "src", "dst", "sp", "dp", ["--keys", "A"])
 
     assert result.exit_code == 0
     merged = load_vault("dst", "dp")
