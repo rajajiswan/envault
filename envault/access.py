@@ -62,6 +62,20 @@ def get_rules(vault_name: str) -> Optional[dict]:
     return _load_store().get(vault_name)
 
 
+def list_vaults_for_label(label: str) -> List[str]:
+    """Return all vault names that *label* is explicitly allowed to access.
+
+    Only vaults with *label* present in their allow-list are returned.
+    Vaults with no rules or only deny-list entries are not included.
+    """
+    store = _load_store()
+    return [
+        vault_name
+        for vault_name, rules in store.items()
+        if label in rules.get("allowed", [])
+    ]
+
+
 def check_access(vault_name: str, label: str) -> bool:
     """Return True if *label* is allowed to access *vault_name*.
 
