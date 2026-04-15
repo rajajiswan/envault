@@ -26,6 +26,24 @@ class RenderResult:
         return len(self.missing) == 0
 
 
+def list_template_variables(template: str) -> List[str]:
+    """Return a deduplicated list of variable names found in *template*.
+
+    Scans for all ``{{ KEY }}`` placeholders and returns the unique keys in
+    the order they first appear.
+
+    Args:
+        template: Raw template string containing ``{{ KEY }}`` placeholders.
+
+    Returns:
+        Ordered list of unique placeholder variable names.
+    """
+    seen: dict[str, None] = {}
+    for match in _PLACEHOLDER_RE.finditer(template):
+        seen[match.group(1)] = None
+    return list(seen)
+
+
 def render_template(
     template: str,
     variables: Dict[str, str],
